@@ -356,4 +356,37 @@ describe('MockFirestoreCollection', function () {
       ]);
     });
   });
+
+  // #region issue #81
+  describe('#onSnapshot', function() {
+    function makeSnapComparable(snap) {
+      return {
+        id: snap.id,
+        data: snap.data(),
+      };
+    }
+
+    var options = { includeMetadataChanges: false };
+    
+    function onNext(snap) {
+      return makeSnapComparable(snap);
+    }
+
+    function onError(error) {}
+
+    it('allow calling onSnapshot() on collection', function() {
+      expect(function() {
+        collection.onSnapshot(options, onNext, onError);
+      }).to.not.throw();
+    });
+
+    it('returns cancel function when calling onSnapshot()', function() {
+      expect(collection.onSnapshot(options, onNext, onError)).to.be.instanceOf(Function);
+    });
+
+    it('calls onNext() with documentSnapshot', function() {
+
+    });
+  });
+  // #endregion
 });

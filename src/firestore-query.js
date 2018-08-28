@@ -23,6 +23,10 @@ function MockFirestoreQuery(path, data, parent, name) {
   this.orderedDirections = [];
   this.limited = 0;
   this._setData(data);
+
+  // #region #81
+  this.snapshotListeners = [];
+  // #endregion
 }
 
 MockFirestoreQuery.prototype.flush = function (delay) {
@@ -163,6 +167,23 @@ MockFirestoreQuery.prototype.limit = function (limit) {
   query.limited = limit;
   return query;
 };
+
+// #region issue #81
+MockFirestoreQuery.prototype.onSnapshot = function (options, onNext, onError) {
+  var listenerId = this.snapshotListeners.length;
+  this.snapshotListeners[listenerId] = {
+    options: options,
+    onNext: onNext,
+    onError: onError,
+  };
+
+  var cancelOnSnapshot = function(id) {
+    this.snapshotListeners.splice(id, 1);
+  };
+
+  return cancelOnSnapshot;
+};
+// #endregion
 
 MockFirestoreQuery.prototype._defer = function (sourceMethod, sourceArgs, callback) {
   this.queue.push({
