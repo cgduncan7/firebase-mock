@@ -146,6 +146,7 @@ MockFirebase.prototype.toString = function () {
 };
 
 MockFirebase.prototype.child = function (childPath) {
+  if (childPath === '/') return this;
   assert(childPath, 'A child path is required');
   var parts = _.compact(childPath.split('/'));
   var childKey = parts.shift();
@@ -194,7 +195,7 @@ MockFirebase.prototype.update = function (changes, callback) {
         // operate as a multi-set
         _.keys(changes).forEach(function (key) {
           var val = changes[key];
-          _.set(data, key.replace(/\//g, '.'), _.isObject(val) ? utils.updateToRtdbObject(val) : val);
+          _.set(data, key.replace(/^\//, '').replace(/\//g, '.'), _.isObject(val) ? utils.updateToRtdbObject(val) : val);
         });
         data = utils.removeEmptyRtdbProperties(data);
         self._dataChanged(data);

@@ -1,4 +1,4 @@
-/** firebase-mock - v2.2.6
+/** firebase-mock - v2.2.10
 https://github.com/soumak77/firebase-mock
 * Copyright (c) 2016 Brian Soumakian
 * License: MIT */
@@ -49849,8 +49849,7 @@ FirebaseAuth.prototype.createUserWithEmailAndPassword = function (email, passwor
 
 FirebaseAuth.prototype.createUser = function (credentials, onComplete) {
   validateCredentials('createUser', credentials, [
-    'email',
-    'password'
+    'email'
   ]);
   return this._createUser('createUser', credentials, onComplete);
 };
@@ -50320,6 +50319,7 @@ MockFirebase.prototype.toString = function () {
 };
 
 MockFirebase.prototype.child = function (childPath) {
+  if (childPath === '/') return this;
   assert(childPath, 'A child path is required');
   var parts = _.compact(childPath.split('/'));
   var childKey = parts.shift();
@@ -50368,7 +50368,7 @@ MockFirebase.prototype.update = function (changes, callback) {
         // operate as a multi-set
         _.keys(changes).forEach(function (key) {
           var val = changes[key];
-          _.set(data, key.replace(/\//g, '.'), _.isObject(val) ? utils.updateToRtdbObject(val) : val);
+          _.set(data, key.replace(/^\//, '').replace(/\//g, '.'), _.isObject(val) ? utils.updateToRtdbObject(val) : val);
         });
         data = utils.removeEmptyRtdbProperties(data);
         self._dataChanged(data);
@@ -52443,7 +52443,10 @@ function MockDataSnapshot (ref, data, priority) {
 
 MockDataSnapshot.prototype.child = function (key) {
   var ref = this.ref.child(key);
-  var data = this.hasChild(key) ? this._snapshotdata[key] : null;
+  var data = null;
+  if (_.isObject(this._snapshotdata) && !_.isUndefined(this._snapshotdata[key])) {
+    data = this._snapshotdata[key];
+  }
   var priority = this.ref.child(key).priority;
   return new MockDataSnapshot(ref, data, priority);
 };
