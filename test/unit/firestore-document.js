@@ -522,17 +522,32 @@ describe('MockFirestoreDocument', function () {
       expect(doc.eventEmitter.listeners('snapshotError').length).to.eq(0);
     });
 
-    it('should call onNext on update', function () {
-      const observer = { next: sinon.spy(), error: sinon.spy() };
+    it('should call onNext on update', function (done) {
+      const observer = {
+        next: function (snapshot) {
+          expect(snapshot.data().title).to.eq('update');
+          expect(snapshot.ref).to.eq(doc.ref);
+          expect(snapshot.id).to.eq(doc.id);
+          done();
+        },
+        error: sinon.spy(),
+      };
       var offSnapshot = doc.onSnapshot(observer);
       doc.update({ title: 'update' });
       db.flush();
-      expect(observer.next).to.be.called;
       expect(observer.error).to.not.be.called;
     });
 
-    it('should call onNext on delete', function () {
-      const observer = { next: sinon.spy(), error: sinon.spy() };
+    it('should call onNext on delete', function (done) {
+      const observer = {
+        next: function (snapshot) {
+          expect(snapshot.exists).to.be.false;
+          expect(snapshot.ref).to.eq(doc.ref);
+          expect(snapshot.id).to.eq(doc.id);
+          done();
+        },
+        error: sinon.spy(),
+      };
       var offSnapshot = doc.onSnapshot(observer);
       doc.delete();
       db.flush();
@@ -540,10 +555,18 @@ describe('MockFirestoreDocument', function () {
       expect(observer.error).to.not.be.called;
     });
 
-    it('should call onNext on set', function () {
-      const observer = { next: sinon.spy(), error: sinon.spy() };
+    it('should call onNext on set', function (done) {
+      const observer = {
+        next: function (snapshot) {
+          expect(snapshot.data().title).to.eq('set');
+          expect(snapshot.ref).to.eq(doc.ref);
+          expect(snapshot.id).to.eq(doc.id);
+          done();
+        },
+        error: sinon.spy(),
+      };
       var offSnapshot = doc.onSnapshot(observer);
-      doc.set({ title: 'updated' });
+      doc.set({ title: 'set' });
       db.flush();
       expect(observer.next).to.be.called;
       expect(observer.error).to.not.be.called;
