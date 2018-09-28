@@ -60,7 +60,7 @@ describe('MockFirestoreDocument', function () {
   });
 
   describe('#collection', function () {
-    it('allow calling collection()', function() {
+    it('allow calling collection()', function () {
       expect(function() {
         doc.collection('collection');
       }).to.not.throw();
@@ -461,6 +461,92 @@ describe('MockFirestoreDocument', function () {
         });
         db.flush();
       });
+    });
+  });
+
+  describe('#onSnapshot', function () {
+    var options = { includeMetadataChanges: true };
+    var onNext = function (snap) { return { id: snap.id, data: snap.data() }; };
+    var onError = function (error) { return error; };
+    var observer = { next: onNext, error: onError };
+
+    it('allow calling onSnapshot(options, onNext, onError?)', function () {
+      expect(function () {
+        doc.onSnapshot(options, onNext, onError);
+      }).to.not.throw();
+
+      expect(function () {
+        doc.onSnapshot(options, onNext);
+      }).to.not.throw();
+
+    });
+
+    it('allow calling onSnapshot(onNext, onError?)', function () {
+      expect(function () {
+        doc.onSnapshot(onNext, onError);
+      }).to.not.throw();
+
+      expect(function () {
+        doc.onSnapshot(onNext);
+      }).to.not.throw();
+    });
+
+    it('allow calling onSnapshot(options, observer)', function () {
+      expect(function () {
+        doc.onSnapshot(options, observer);
+      }).to.not.throw();
+    });
+
+    it('allow calling onSnapshot(observer)', function () {
+      expect(function () {
+        doc.onSnapshot(observer);
+      }).to.not.throw();
+    });
+
+    it('should add snapshotListeners', function () {
+      doc.onSnapshot(observer);
+
+      expect(doc.eventEmitter.listeners('snapshotNext').length).to.eq(1);
+      expect(doc.eventEmitter.listeners('snapshotError').length).to.eq(1);
+    });
+
+    it('should add & remove snapshotListeners', function () {
+      var offSnapshot = doc.onSnapshot(observer);
+      
+      expect(doc.eventEmitter.listeners('snapshotNext').length).to.eq(1);
+      expect(doc.eventEmitter.listeners('snapshotError').length).to.eq(1);
+      
+      offSnapshot();
+
+      expect(doc.eventEmitter.listeners('snapshotNext').length).to.eq(0);
+      expect(doc.eventEmitter.listeners('snapshotError').length).to.eq(0);
+    });
+
+    it('should call onNext on update', function () {
+      const observer = { next: sinon.spy(), error: sinon.spy() };
+      var offSnapshot = doc.onSnapshot(observer);
+      doc.update({ title: 'update' });
+      db.flush();
+      expect(observer.next).to.be.called;
+      expect(observer.error).to.not.be.called;
+    });
+
+    it('should call onNext on delete', function () {
+      const observer = { next: sinon.spy(), error: sinon.spy() };
+      var offSnapshot = doc.onSnapshot(observer);
+      doc.delete();
+      db.flush();
+      expect(observer.next).to.be.called;
+      expect(observer.error).to.not.be.called;
+    });
+
+    it('should call onNext on set', function () {
+      const observer = { next: sinon.spy(), error: sinon.spy() };
+      var offSnapshot = doc.onSnapshot(observer);
+      doc.set({ title: 'updated' });
+      db.flush();
+      expect(observer.next).to.be.called;
+      expect(observer.error).to.not.be.called;
     });
   });
 });

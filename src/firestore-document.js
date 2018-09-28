@@ -8,6 +8,9 @@ var DocumentSnapshot = require('./firestore-document-snapshot');
 var Queue = require('./queue').Queue;
 var utils = require('./utils');
 var validate = require('./validators');
+// #region ISSUE #81
+var EventEmitter = require('events').EventEmitter;
+// #endregion
 
 function MockFirestoreDocument(path, data, parent, name, CollectionReference) {
   this.ref = this;
@@ -23,6 +26,9 @@ function MockFirestoreDocument(path, data, parent, name, CollectionReference) {
   if (parent) parent.children[this.id] = this;
   this.data = null;
   this._dataChanged(_.cloneDeep(data) || null);
+  // #region ISSUE #81
+  this.eventEmitter = new EventEmitter();
+  // #endregion
 }
 
 MockFirestoreDocument.prototype.flush = function (delay) {
@@ -105,17 +111,17 @@ MockFirestoreDocument.prototype.create = function (data, callback) {
   var self = this;
   return new Promise(function (resolve, reject) {
     self._defer('create', _.toArray(arguments), function () {
-
+      
       var base = self._getData();
       err = err || self._validateDoesNotExist(base);
-        if (err === null) {
+      if (err === null) {
         self._dataChanged(data);
         resolve();
       } else {
-          if (callback) {
-            callback(err);
+        if (callback) {
+          callback(err);
         }
-          reject(err);
+        reject(err);
       }
     });
   });
@@ -222,6 +228,59 @@ MockFirestoreDocument.prototype.getCollections = function () {
   });
 };
 
+// #region ISSUE #81
+/**
+ * Attaches a listener for DocumentSnapshot events. Fixes #81
+ * @see https://firebase.google.com/docs/reference/js/firebase.firestore.DocumentReference#onSnapshot
+ */
+MockFirestoreDocument.prototype.onSnapshot = function (optionsOrObserverOrOnNext, observerOrOnNextOrOnError, onError) {
+  var _options = { includeMetadataChanges: false };
+  var _onNext, _onError;
+
+  if (typeof optionsOrObserverOrOnNext === 'function') { // onNext
+    _onNext = optionsOrObserverOrOnNext;
+    _onError = observerOrOnNextOrOnError;
+  } else {
+    assert.equal(typeof optionsOrObserverOrOnNext, 'object', 'Expected first argument to be options or observer when not onNext.');
+    if (optionsOrObserverOrOnNext.hasOwnProperty('includeMetadataChanges')) { // SnapshotListenOptions
+      _options = optionsOrObserverOrOnNext;
+      if (typeof observerOrOnNextOrOnError === 'function') {
+        _onNext = observerOrOnNextOrOnError;
+        _onError = onError;
+      } else {
+        assert.equal(typeof observerOrOnNextOrOnError, 'object', 'Expected observer object.');
+        assert.equal(observerOrOnNextOrOnError.hasOwnProperty('next'), true, 'Expected next in observer object.');
+        assert.equal(observerOrOnNextOrOnError.hasOwnProperty('error'), true, 'Expected error in observer object.');
+        _onNext = observerOrOnNextOrOnError.next;
+        _onError = observerOrOnNextOrOnError.error;
+      }
+    } else { // Observer
+      assert.equal(optionsOrObserverOrOnNext.hasOwnProperty('next'), true, 'Expected next in observer object.');
+      assert.equal(optionsOrObserverOrOnNext.hasOwnProperty('error'), true, 'Expected error in observer object.');
+      _onNext = optionsOrObserverOrOnNext.next;
+      _onError = optionsOrObserverOrOnNext.error;
+    }
+  }
+  return this._onSnapshot(_options, _onNext, _onError);
+};
+
+MockFirestoreDocument.prototype._onSnapshot = function (options, onNext, onError) {
+  this.eventEmitter.on('snapshotNext', onNext)
+  if (onError) this.eventEmitter.on('snapshotError', onError);
+
+  const self = this;
+  var offSnapshot = function () {
+    self._offSnapshot(onNext, onError);
+  }
+  return offSnapshot;
+};
+
+MockFirestoreDocument.prototype._offSnapshot = function (onNext, onError) {
+  this.eventEmitter.removeListener('snapshotNext', onNext)
+  if (onError) this.eventEmitter.removeListener('snapshotError', onError);
+}
+// #endregion
+
 MockFirestoreDocument.prototype._hasChild = function (key) {
   return _.isObject(this.data) && _.has(this.data, key);
 };
@@ -232,6 +291,14 @@ MockFirestoreDocument.prototype._childData = function (key) {
 
 MockFirestoreDocument.prototype._dataChanged = function (unparsedData) {
   this.data = utils.cleanFirestoreData(unparsedData);
+
+  // #region ISSUE #81
+  const snapshot = new DocumentSnapshot(this.id, this.ref, this.data);
+  if (this.eventEmitter) {
+    this.eventEmitter.emit('snapshotNext', snapshot);
+  }
+  // #endregion
+
   if (this.parent) {
     if (this.data) {
       this.parent.data = this.parent.data || {};
